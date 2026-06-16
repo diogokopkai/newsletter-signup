@@ -33,14 +33,18 @@
   .msg{margin-top:14px;font-size:14px;line-height:1.4;min-height:18px}
   .msg.err{color:#ff7a7a}
   .foot{margin-top:24px;font-size:12px;color:#5e6b78;text-align:center}
-  .done{text-align:center;padding:8px 0}
-  .done .tick{width:56px;height:56px;border-radius:50%;background:rgba(0,229,180,.12);
-    display:flex;align-items:center;justify-content:center;margin:0 auto 14px;color:var(--accent);font-size:30px;font-weight:800}
+  .state{text-align:center;padding:6px 0}
+  .state .ic{width:60px;height:60px;border-radius:50%;background:rgba(0,229,180,.12);
+    display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:30px}
+  .tips{text-align:left;background:#0c1116;border:1px solid #283340;border-radius:12px;
+    padding:14px 16px;margin-top:8px;font-size:14px;line-height:1.6;color:#c7d0d9}
+  .tips b{color:#fff}
   .hidden{display:none}
 </style>
 </head>
 <body>
   <div class="card">
+    <!-- 1. Formulário -->
     <div id="form-view">
       <div class="kicker">Newsletter semanal</div>
       <h1>What AI did this week for me</h1>
@@ -53,22 +57,53 @@
         <button id="btn" type="submit">Quero receber</button>
         <div class="msg" id="msg"></div>
       </form>
-      <p class="foot">Sem spam. Sais quando quiseres.</p>
+      <p class="foot">Confirmação dupla. Sais quando quiseres.</p>
     </div>
 
-    <div id="done-view" class="done hidden">
-      <div class="tick">&#10003;</div>
-      <h1>Estás dentro.</h1>
-      <p class="sub">A primeira edição chega no próximo envio. Até lá.</p>
+    <!-- 2. Inscrito, falta confirmar no email -->
+    <div id="check-view" class="state hidden">
+      <div class="ic">📩</div>
+      <h1>Falta um passo.</h1>
+      <p class="sub">Enviámos um email para confirmares a tua inscrição. Abre-o e carrega em <b style="color:#fff">Confirmar inscrição</b>. Só ficas dentro depois disso.</p>
+      <div class="tips">
+        Não chegou em 1 minuto? Verifica:<br>
+        🗂️ a aba <b>Promoções</b> (Gmail)<br>
+        🚫 a pasta de <b>Spam</b> ou Lixo<br>
+        👀 procura por <b>"What AI did this week"</b>
+      </div>
+    </div>
+
+    <!-- 3. Confirmado -->
+    <div id="done-view" class="state hidden">
+      <div class="ic" style="color:var(--accent)">✓</div>
+      <h1>Inscrição confirmada. 🎉</h1>
+      <p class="sub">Estás dentro. A próxima edição chega no próximo envio. Até lá.</p>
     </div>
   </div>
 
 <script>
   const API = "https://yajuapqpffigquikpxlk.supabase.co/functions/v1/newsletter-signup";
+  const show = (id) => {
+    for (const v of ["form-view","check-view","done-view"]) document.getElementById(v).classList.add("hidden");
+    document.getElementById(id).classList.remove("hidden");
+  };
+
+  // estado de confirmação (vindo do link do email)
+  const params = new URLSearchParams(location.search);
+  const c = params.get("confirmed");
+  if (c === "1") show("done-view");
+  else if (c === "expired" || c === "error") {
+    show("form-view");
+    const m = document.getElementById("msg");
+    m.textContent = c === "expired"
+      ? "Esse link expirou ou já foi usado. Inscreve-te outra vez."
+      : "Algo correu mal a confirmar. Tenta inscrever-te de novo.";
+    m.className = "msg err";
+  }
+
   const f = document.getElementById("f");
   const btn = document.getElementById("btn");
   const msg = document.getElementById("msg");
-
   f.addEventListener("submit", async (e) => {
     e.preventDefault();
     msg.textContent = ""; msg.className = "msg";
@@ -77,19 +112,14 @@
     if (!email.includes("@") || !email.includes(".")) {
       msg.textContent = "Verifica o email."; msg.className = "msg err"; return;
     }
-    btn.disabled = true; btn.textContent = "A inscrever...";
+    btn.disabled = true; btn.textContent = "A enviar confirmação...";
     try {
       const r = await fetch(API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email }),
       });
       const data = await r.json().catch(() => ({}));
-      if (r.ok && data.ok) {
-        document.getElementById("form-view").classList.add("hidden");
-        document.getElementById("done-view").classList.remove("hidden");
-        return;
-      }
+      if (r.ok && data.ok) { show("check-view"); return; }
       msg.textContent = data.error === "invalid_email"
         ? "Email inválido. Verifica e tenta outra vez."
         : "Não consegui inscrever-te agora. Tenta daqui a pouco.";
